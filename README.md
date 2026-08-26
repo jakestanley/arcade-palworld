@@ -24,6 +24,13 @@ Dockerized Palworld dedicated server using
 3. Forward/open UDP port `${SERVER_PORT}` (default `8211`) on your router
    and firewall so players outside your LAN can connect.
 
+## Crossplay (Xbox / Game Pass)
+
+`ALLOW_CONNECT_PLATFORM` defaults to `Steam,Xbox` in `.env.example` so both
+Steam and Xbox/Game Pass players can join. If you only want Steam players,
+set it to `Steam`. Xbox/Game Pass players also need crossplay enabled in
+their own in-game settings — server-side alone isn't enough.
+
 ## Data
 
 World saves, config (`PalWorldSettings.ini`), and backups live under
