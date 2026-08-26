@@ -20,6 +20,10 @@ stacks: one repo per game, `docker-compose.yml` + `.env` + git-ignored `data/`.
 - `data/` — bind-mounted to `/palworld` in the container: world saves,
   `PalWorldSettings.ini`, backups. **Git-ignored.** This is the only
   persistent state — treat it like a production data volume, not scratch space.
+- `arcade/` — optional adapter that registers this server with the
+  [homelab-arcade](https://github.com/jakestanley/homelab-arcade) control
+  portal (`arcade.stanley.arpa`) for start/stop from a shared UI. Runs as a
+  plain host process on adler, not inside Docker. See `arcade/README.md`.
 
 ## Common commands
 
