@@ -33,10 +33,16 @@ docker compose config         # validate compose + .env substitution without sta
 
 ## Gotchas
 
-- **Crossplay is set via `ALLOW_CONNECT_PLATFORM`**, not a well-known/obvious
-  var name. Defaults to `Steam,Xbox` in `.env.example` so Xbox/Game Pass
+- **Crossplay is set via `CROSSPLAY_PLATFORMS`**, not a well-known/obvious
+  var name, and takes a parenthesized value (e.g. `(Steam,Xbox)`), not a bare
+  comma list. Defaults to `(Steam,Xbox)` in `.env.example` so Xbox/Game Pass
   players can join. Server-side alone isn't sufficient — Xbox/Game Pass
-  players also need crossplay enabled in their own in-game settings.
+  players also need crossplay enabled in their own in-game settings. (The
+  old `ALLOW_CONNECT_PLATFORM` var is deprecated by the image and no longer
+  used here.)
+- **Multithreading is set via `ENABLE_PERF_THREADING_ARGS` + `WORKER_THREADS_SERVER`**,
+  replacing the deprecated `MULTITHREADING` var. `WORKER_THREADS_SERVER`
+  should track the host's core count (`.env.example` defaults to `4`).
 - **`RCON_PORT` is always published** in `docker-compose.yml` regardless of
   `RCON_ENABLED` — harmless (nothing listens if disabled) but don't assume
   the port mapping implies RCON is on.
