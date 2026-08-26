@@ -1,0 +1,52 @@
+# docker-palworld
+
+## Overview
+
+Single-service Docker Compose stack running a Palworld dedicated server via
+[thijsvanloef/palworld-server-docker](https://github.com/thijsvanloef/palworld-server-docker)
+(SteamCMD-based install/update, RCON, auto backups, crossplay).
+
+This is a standalone game-server repo, not a `homelab-standards` /
+`homelab-service-template` service — no `registry.yaml` wiring, no
+`homelab-infra` dependency. It follows the same lightweight pattern as
+sibling repos `docker-minecraft` and the retired `docker-gameservers-deprecated`
+stacks: one repo per game, `docker-compose.yml` + `.env` + git-ignored `data/`.
+
+## Files
+
+- `docker-compose.yml` — the `palworld` service definition
+- `.env.example` — documented template, committed
+- `.env` — actual secrets/config, **git-ignored**, created by copying `.env.example`
+- `data/` — bind-mounted to `/palworld` in the container: world saves,
+  `PalWorldSettings.ini`, backups. **Git-ignored.** This is the only
+  persistent state — treat it like a production data volume, not scratch space.
+
+## Common commands
+
+```bash
+docker compose up -d          # start (first boot downloads server via SteamCMD — can take a while)
+docker compose logs -f        # follow logs, especially useful during first-boot install
+docker compose pull           # update the container image itself
+docker compose down           # stop (data/ persists)
+docker compose config         # validate compose + .env substitution without starting anything
+```
+
+## Gotchas
+
+- **Crossplay is set via `ALLOW_CONNECT_PLATFORM`**, not a well-known/obvious
+  var name. Defaults to `Steam,Xbox` in `.env.example` so Xbox/Game Pass
+  players can join. Server-side alone isn't sufficient — Xbox/Game Pass
+  players also need crossplay enabled in their own in-game settings.
+- **`RCON_PORT` is always published** in `docker-compose.yml` regardless of
+  `RCON_ENABLED` — harmless (nothing listens if disabled) but don't assume
+  the port mapping implies RCON is on.
+- **`ADMIN_PASSWORD` defaults to `changeme`** in `.env.example` — real `.env`
+  should never ship with this; check before assuming a deployment is secured.
+- Most `PalWorldSettings.ini` values (difficulty, drop rates, PvP, day/night
+  speed, etc.) aren't in `.env.example` yet — they're addable as extra env
+  vars per the [image's README](https://github.com/thijsvanloef/palworld-server-docker#environment-variables)
+  if the user asks for gameplay tuning.
+- No GitHub remote has been created/pushed for this repo yet (as of initial
+  scaffold) — only a local git init. Confirm with the user before creating
+  a remote or pushing, per their standing "confirm outward-facing actions"
+  preference.
