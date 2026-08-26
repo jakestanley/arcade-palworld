@@ -1,0 +1,30 @@
+services:
+  palworld:
+    image: thijsvanloef/palworld-server-docker:${PALWORLD_TAG}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+      PORT: "${SERVER_PORT}"
+      PLAYERS: "${PLAYERS}"
+      MULTITHREADING: "${MULTITHREADING}"
+      SERVER_NAME: "${SERVER_NAME}"
+      SERVER_DESCRIPTION: "${SERVER_DESCRIPTION}"
+      SERVER_PASSWORD: "${SERVER_PASSWORD}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      COMMUNITY: "${COMMUNITY}"
+      RCON_ENABLED: "${RCON_ENABLED}"
+      RCON_PORT: "${RCON_PORT}"
+      AUTO_UPDATE_ENABLED: "${AUTO_UPDATE_ENABLED}"
+      UPDATE_ON_BOOT: "${UPDATE_ON_BOOT}"
+      BACKUP_ENABLED: "${BACKUP_ENABLED}"
+      BACKUP_CRON_EXPRESSION: "${BACKUP_CRON_EXPRESSION}"
+      DELETE_OLD_BACKUPS: "${DELETE_OLD_BACKUPS}"
+      OLD_BACKUP_DAYS: "${OLD_BACKUP_DAYS}"
+    ports:
+      - "${SERVER_PORT}:8211/udp"
+      - "${RCON_PORT}:25575/tcp"
+    volumes:
+      - "${DATA_PATH}:/palworld"
