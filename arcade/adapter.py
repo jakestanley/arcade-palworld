@@ -52,6 +52,9 @@ if os.path.isfile(HOMELAB_CA_FILE):
 COMPOSE_PROJECT = os.environ.get("ARCADE_COMPOSE_PROJECT", "docker-palworld")
 COMPOSE_SERVICE = os.environ.get("ARCADE_COMPOSE_SERVICE", "palworld")
 
+# Should match docker-compose.yml's stop_grace_period for the target service.
+STOP_TIMEOUT_SECONDS = int(os.environ.get("ARCADE_STOP_TIMEOUT_SECONDS", "30"))
+
 ACTIONS = ["start", "stop"]
 
 docker_client = docker.from_env()
@@ -118,7 +121,10 @@ def do_stop() -> tuple[bool, str]:
         container = find_target_container()
         if container is None:
             return False, f"no container found for {COMPOSE_PROJECT}/{COMPOSE_SERVICE}"
-        container.stop()
+        # Match docker-compose.yml's stop_grace_period — the SDK's own
+        # default (10s) is shorter and risks SIGKILL before the game
+        # finishes saving on shutdown.
+        container.stop(timeout=STOP_TIMEOUT_SECONDS)
     except (DockerException, NotFound) as exc:
         return False, str(exc)
     return True, current_status()
