@@ -34,6 +34,12 @@ services:
   arcade-adapter:
     build: ./arcade
     restart: unless-stopped
+    # Required for UPnP router discovery (SSDP multicast) — confirmed this
+    # doesn't reliably work across Docker's default bridge network. Means
+    # the adapter binds ARCADE_ADAPTER_PORT directly on the host, so the
+    # ports: mapping below is gone (Docker ignores ports: under host
+    # networking anyway).
+    network_mode: host
     environment:
       ARCADE_SERVER_ID: "${ARCADE_SERVER_ID:-arcade-palworld}"
       ARCADE_SERVER_NAME: "${ARCADE_SERVER_NAME:-Palworld}"
@@ -45,8 +51,10 @@ services:
       ARCADE_COMPOSE_PROJECT: "${ARCADE_COMPOSE_PROJECT:-arcade-palworld}"
       ARCADE_COMPOSE_SERVICE: "${ARCADE_COMPOSE_SERVICE:-palworld}"
       ARCADE_STOP_TIMEOUT_SECONDS: "${ARCADE_STOP_TIMEOUT_SECONDS:-30}"
-    ports:
-      - "${ARCADE_ADAPTER_PORT:-8300}:${ARCADE_ADAPTER_PORT:-8300}"
+      # UPnP port-forwarding, tied to the palworld service's own game port.
+      SERVER_PORT: "${SERVER_PORT}"
+      ARCADE_FORWARD_PROTOCOL: "${ARCADE_FORWARD_PROTOCOL:-udp}"
+      ARCADE_UPNP_ENABLED: "${ARCADE_UPNP_ENABLED:-true}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/homelab/certs/ca/ca.crt:/etc/ssl/certs/homelab-ca.crt:ro

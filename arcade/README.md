@@ -45,6 +45,8 @@ Python, no sudo.
 | `ARCADE_COMPOSE_PROJECT` | `arcade-palworld` | compose project label this adapter looks for |
 | `ARCADE_COMPOSE_SERVICE` | `palworld` | compose service label this adapter looks for |
 | `ARCADE_STOP_TIMEOUT_SECONDS` | `30` | must match this repo's `stop_grace_period` |
+| `ARCADE_UPNP_ENABLED` | `true` | opens/closes a router port-forward for `SERVER_PORT` on start/stop via UPnP; set `false` to fall back to a manually-configured forward |
+| `ARCADE_FORWARD_PROTOCOL` | `udp` | protocol of the mapping UPnP opens — matches `palworld`'s game port (`SERVER_PORT`, reused from the top-level `.env`, not a separate value) |
 
 ## Gotchas
 
@@ -55,3 +57,13 @@ Python, no sudo.
   Watchtower use the same approach), but worth knowing.
 - This adapter is **unauthenticated** — it trusts the homelab LAN/VPN, same trust model as
   RCON. Do not expose `ARCADE_ADAPTER_PORT` outside the LAN.
+- Runs with `network_mode: host` — required for UPnP router discovery (SSDP multicast), which
+  doesn't reliably work across Docker's default bridge network. This means the adapter binds
+  `ARCADE_ADAPTER_PORT` directly on the host's network stack, not through a published port
+  mapping.
+- UPnP port-forwarding only ever touches `SERVER_PORT`/`ARCADE_FORWARD_PROTOCOL` — RCON's port is
+  never forwarded, regardless of `RCON_ENABLED`. A UPnP failure (router unreachable, UPnP
+  disabled, lease rejected) is logged as a warning and never blocks the start/stop action itself.
+  The mapping is re-asserted once per heartbeat while running, so a router-side lease expiry or
+  reboot self-heals within one heartbeat interval, and once on adapter boot so an adapter restart
+  while the game server is already running converges to the correct forwarding state immediately.

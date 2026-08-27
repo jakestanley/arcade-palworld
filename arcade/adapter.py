@@ -29,6 +29,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import docker
 from docker.errors import DockerException, NotFound
 
+import upnp
+
 SERVER_ID = os.environ.get("ARCADE_SERVER_ID", "arcade-palworld")
 SERVER_NAME = os.environ.get("ARCADE_SERVER_NAME", "Palworld")
 SERVER_DESCRIPTION = os.environ.get(
@@ -54,6 +56,12 @@ COMPOSE_SERVICE = os.environ.get("ARCADE_COMPOSE_SERVICE", "palworld")
 
 # Should match docker-compose.yml's stop_grace_period for the target service.
 STOP_TIMEOUT_SECONDS = int(os.environ.get("ARCADE_STOP_TIMEOUT_SECONDS", "30"))
+
+# UPnP port-forwarding, tied to the server's running state. Requires
+# network_mode: host — see upnp.py's module docstring for why.
+UPNP_ENABLED = os.environ.get("ARCADE_UPNP_ENABLED", "true").lower() == "true"
+FORWARD_PORT = int(os.environ.get("SERVER_PORT", "0"))
+FORWARD_PROTOCOL = os.environ.get("ARCADE_FORWARD_PROTOCOL", "udp")
 
 ACTIONS = ["start", "stop"]
 
@@ -93,6 +101,12 @@ def find_target_container():
     return containers[0] if containers else None
 
 
+def sync_port_forward(should_be_open: bool) -> None:
+    if not UPNP_ENABLED or not FORWARD_PORT:
+        return
+    upnp.ensure_mapping(FORWARD_PORT, FORWARD_PROTOCOL, SERVER_DESCRIPTION, should_be_open)
+
+
 def current_status() -> str:
     """running | stopped | unknown"""
     try:
@@ -113,6 +127,9 @@ def do_start() -> tuple[bool, str]:
         container.start()
     except (DockerException, NotFound) as exc:
         return False, str(exc)
+    # Port-forwarding is a convenience layer on top of the actual start —
+    # never let a UPnP failure affect this action's own success.
+    sync_port_forward(should_be_open=True)
     return True, current_status()
 
 
@@ -127,6 +144,7 @@ def do_stop() -> tuple[bool, str]:
         container.stop(timeout=STOP_TIMEOUT_SECONDS)
     except (DockerException, NotFound) as exc:
         return False, str(exc)
+    sync_port_forward(should_be_open=False)
     return True, current_status()
 
 
@@ -185,13 +203,19 @@ def heartbeat_loop() -> None:
     register_url = f"{ARCADE_BASE_URL}/api/register"
     base_url = adapter_base_url()
     while True:
+        status = current_status()
+        # Renew the UPnP lease while running — some routers expire mappings
+        # after a TTL, so this self-heals within one heartbeat interval
+        # rather than needing a manual stop/start.
+        if status == "running":
+            sync_port_forward(should_be_open=True)
         payload = {
             "id": SERVER_ID,
             "name": SERVER_NAME,
             "description": SERVER_DESCRIPTION,
             "base_url": base_url,
             "actions": ACTIONS,
-            "status": current_status(),
+            "status": status,
         }
         data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(
@@ -209,11 +233,20 @@ def heartbeat_loop() -> None:
 
 
 def main() -> None:
+    # Reconcile immediately on boot — an adapter restart while the game
+    # server is already running (or already stopped) shouldn't have to
+    # wait for a future start/stop action or the next heartbeat to get the
+    # port-forward state right.
+    sync_port_forward(should_be_open=current_status() == "running")
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", ADAPTER_PORT), AdapterHandler)
     print(f"Palworld arcade adapter listening on http://0.0.0.0:{ADAPTER_PORT}")
     print(f"Controlling {COMPOSE_PROJECT}/{COMPOSE_SERVICE} via the Docker socket")
     print(f"Registering with {ARCADE_BASE_URL} every {HEARTBEAT_SECONDS}s as '{SERVER_ID}'")
+    if UPNP_ENABLED:
+        print(f"UPnP port-forwarding enabled for {FORWARD_PROTOCOL.upper()} {FORWARD_PORT}")
+    else:
+        print("UPnP port-forwarding disabled (ARCADE_UPNP_ENABLED=false)")
     server.serve_forever()
 
 
