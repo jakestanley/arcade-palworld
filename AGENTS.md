@@ -20,16 +20,19 @@ stacks: one repo per game, `docker-compose.yml` + `.env` + git-ignored `data/`.
 - `data/` — bind-mounted to `/palworld` in the container: world saves,
   `PalWorldSettings.ini`, backups. **Git-ignored.** This is the only
   persistent state — treat it like a production data volume, not scratch space.
-- `arcade/` — optional adapter that registers this server with the
-  [homelab-arcade](https://github.com/jakestanley/homelab-arcade) control
-  portal (`arcade.stanley.arpa`) for start/stop from a shared UI. Runs as
-  its own `docker-compose` service (`arcade-adapter`), controlling the
-  `palworld` container via the Docker socket. See `arcade/README.md`.
+- Arcade control adapter (`arcade.stanley.arpa` start/stop for this
+  server) lives in its own sibling repo,
+  [arcade-palworld](https://github.com/jakestanley/arcade-palworld) — not
+  in this repo. It controls the `palworld` container here via the Docker
+  socket, identified by compose project/service labels, but is deployed
+  and versioned independently. `arcade-<game>` is the naming convention
+  for these adapters going forward, kept as separate repos so each can
+  evolve on its own schedule.
 
 ## Common commands
 
 ```bash
-./scripts/up.sh                # idempotent entrypoint: docker compose up -d (palworld + arcade-adapter)
+./scripts/up.sh                # idempotent entrypoint: docker compose up -d
 docker compose up -d          # start (first boot downloads server via SteamCMD — can take a while)
 docker compose logs -f        # follow logs, especially useful during first-boot install
 docker compose pull           # update the container image itself
