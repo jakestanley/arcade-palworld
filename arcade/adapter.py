@@ -29,7 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import docker
 from docker.errors import DockerException, NotFound
 
-SERVER_ID = os.environ.get("ARCADE_SERVER_ID", "palworld")
+SERVER_ID = os.environ.get("ARCADE_SERVER_ID", "arcade-palworld")
 SERVER_NAME = os.environ.get("ARCADE_SERVER_NAME", "Palworld")
 SERVER_DESCRIPTION = os.environ.get(
     "ARCADE_SERVER_DESCRIPTION", "Palworld dedicated server (docker-palworld)"
