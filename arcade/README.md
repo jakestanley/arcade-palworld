@@ -1,12 +1,14 @@
 # arcade.stanley.arpa adapter
 
 Registers this Palworld server with the [homelab-arcade](https://github.com/jakestanley/homelab-arcade)
-control portal so it can be started/stopped from `arcade.stanley.arpa`
-alongside the other game servers.
+control portal so it can be started/stopped from `arcade.stanley.arpa` alongside other game
+servers.
 
-Runs as a plain host process on **adler** (not inside Docker — it shells
-out to `docker compose` in this repo, so it needs the Docker socket
-available the normal way a host user has it, not passed into a container).
+Runs as its own `docker-compose` service (`arcade-adapter`, see `../docker-compose.yml`) —
+`scripts/up.sh` at the repo root starts both `palworld` and `arcade-adapter` together, in one
+idempotent step. The adapter talks to the Docker Engine API directly over the mounted Docker
+socket (`docker` Python SDK, no CLI needed) to control the sibling `palworld` container — it
+does not shell out to `docker compose` and doesn't need the compose plugin installed.
 
 ## Contract
 
@@ -14,20 +16,22 @@ Implements the standard arcade adapter contract — see homelab-arcade's
 `docs/ARCADE_CONTRACT.md` for the full spec. Summary:
 
 - `GET /arcade/info` → `{id, name, description, actions, status}`
-- `POST /arcade/actions/start` / `POST /arcade/actions/stop` → runs
-  `docker compose up -d` / `docker compose stop` in this repo
+- `POST /arcade/actions/start` / `POST /arcade/actions/stop` → starts/stops the sibling
+  `palworld` container directly (identified by its `com.docker.compose.project`/`.service`
+  labels, not a hardcoded container name)
 - Registers itself with `POST {ARCADE_BASE_URL}/api/register` every
   `ARCADE_HEARTBEAT_SECONDS` (default 30s)
 
 ## Run
 
 ```bash
-python3 arcade/adapter.py
+./scripts/up.sh
 ```
 
-Zero third-party dependencies — stdlib only.
+That's the entire deployment — `docker compose up -d` for both services. No systemd, no host
+Python, no sudo.
 
-## Config (env vars, no new .env wiring by default)
+## Config (`.env`, see `.env.example`)
 
 | Var | Default | Notes |
 |---|---|---|
@@ -39,18 +43,12 @@ Zero third-party dependencies — stdlib only.
 | `ARCADE_ADAPTER_BASE_URL` | auto-detected LAN IP | override if auto-detection picks the wrong interface |
 | `ARCADE_HEARTBEAT_SECONDS` | `30` | registration heartbeat interval |
 
-## Run as a systemd service
-
-```bash
-cp arcade/palworld-arcade-adapter.service.example /etc/systemd/system/palworld-arcade-adapter.service
-# edit User / WorkingDirectory / paths for your host
-sudo systemctl daemon-reload
-sudo systemctl enable --now palworld-arcade-adapter
-```
-
 ## Gotchas
 
-- Uses `docker compose stop`, not `down`, for the stop action — containers
-  and the `data/` volume are left in place, no world data is touched.
-- This adapter is **unauthenticated** — it trusts the homelab LAN/VPN, same
-  trust model as RCON. Do not expose `ARCADE_ADAPTER_PORT` outside the LAN.
+- Uses `container.stop()`, not removing it — the container and the `data/` volume are left in
+  place, no world data is touched. `start()` on an already-running container is a no-op.
+- The adapter container has the host Docker socket mounted in — this is root-equivalent host
+  access, scoped to this one container only. Standard pattern for control agents (Portainer,
+  Watchtower use the same approach), but worth knowing.
+- This adapter is **unauthenticated** — it trusts the homelab LAN/VPN, same trust model as
+  RCON. Do not expose `ARCADE_ADAPTER_PORT` outside the LAN.

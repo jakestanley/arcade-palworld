@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """arcade.stanley.arpa control adapter for docker-palworld.
 
-Runs as a plain host process (not inside Docker, to avoid Docker-socket
-exposure) alongside this repo. Exposes the shared arcade adapter contract
-(GET /arcade/info, POST /arcade/actions/<action>) backed by `docker compose`,
-and periodically registers itself with the arcade portal so it shows up as
-a managed server with start/stop actions.
+Runs as its own docker-compose service (see ../docker-compose.yml), with
+the host Docker socket mounted in, so it can control the sibling `palworld`
+service directly via the Docker Engine API — no docker CLI/compose plugin
+needed inside this container, just the `docker` Python SDK.
 
-Zero third-party dependencies on purpose — this only needs to run reliably
-as a small systemd unit, not pull in a virtualenv.
+Exposes the shared arcade adapter contract (GET /arcade/info, POST
+/arcade/actions/<action>), and periodically registers itself with the
+arcade portal so it shows up as a managed server with start/stop actions.
 
-See docs/ARCADE_CONTRACT.md for the protocol this implements, and
-homelab-arcade's docs/ for the portal side.
+See docs/ARCADE_CONTRACT.md (in homelab-standards / homelab-arcade) for
+the protocol this implements.
 """
 
 from __future__ import annotations
@@ -19,15 +19,15 @@ from __future__ import annotations
 import json
 import os
 import socket
-import subprocess
+import ssl
 import threading
 import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 
-REPO_DIR = Path(__file__).resolve().parent.parent
+import docker
+from docker.errors import DockerException, NotFound
 
 SERVER_ID = os.environ.get("ARCADE_SERVER_ID", "palworld")
 SERVER_NAME = os.environ.get("ARCADE_SERVER_NAME", "Palworld")
@@ -35,11 +35,26 @@ SERVER_DESCRIPTION = os.environ.get(
     "ARCADE_SERVER_DESCRIPTION", "Palworld dedicated server (docker-palworld)"
 )
 ADAPTER_PORT = int(os.environ.get("ARCADE_ADAPTER_PORT", "8300"))
-ARCADE_BASE_URL = os.environ.get("ARCADE_BASE_URL", "http://arcade.stanley.arpa").rstrip("/")
+ARCADE_BASE_URL = os.environ.get("ARCADE_BASE_URL", "https://arcade.stanley.arpa").rstrip("/")
 HEARTBEAT_SECONDS = float(os.environ.get("ARCADE_HEARTBEAT_SECONDS", "30"))
 ADAPTER_BASE_URL_OVERRIDE = os.environ.get("ARCADE_ADAPTER_BASE_URL", "").rstrip("/")
 
+# Internal HTTPS uses the homelab's private CA (see homelab-standards'
+# internal-ca-trust.md) — never disable verification instead.
+HOMELAB_CA_FILE = os.environ.get("HOMELAB_CA_FILE", "/etc/ssl/certs/homelab-ca.crt")
+_ssl_context = None
+if os.path.isfile(HOMELAB_CA_FILE):
+    _ssl_context = ssl.create_default_context(cafile=HOMELAB_CA_FILE)
+
+# Which compose-managed container this adapter controls, identified by the
+# labels docker compose itself sets — not a hardcoded container name, so it
+# still works if the project/container naming ever changes.
+COMPOSE_PROJECT = os.environ.get("ARCADE_COMPOSE_PROJECT", "docker-palworld")
+COMPOSE_SERVICE = os.environ.get("ARCADE_COMPOSE_SERVICE", "palworld")
+
 ACTIONS = ["start", "stop"]
+
+docker_client = docker.from_env()
 
 
 def detect_primary_ip() -> str:
@@ -62,40 +77,50 @@ def adapter_base_url() -> str:
     return f"http://{detect_primary_ip()}:{ADAPTER_PORT}"
 
 
-def run_compose(*args: str, timeout: int = 60) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["docker", "compose", *args],
-        cwd=REPO_DIR,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
+def find_target_container():
+    containers = docker_client.containers.list(
+        all=True,
+        filters={
+            "label": [
+                f"com.docker.compose.project={COMPOSE_PROJECT}",
+                f"com.docker.compose.service={COMPOSE_SERVICE}",
+            ]
+        },
     )
+    return containers[0] if containers else None
 
 
 def current_status() -> str:
     """running | stopped | unknown"""
     try:
-        result = run_compose("ps", "--status", "running", "-q", timeout=15)
-    except (subprocess.SubprocessError, OSError):
+        container = find_target_container()
+    except DockerException:
         return "unknown"
-    if result.returncode != 0:
+    if container is None:
         return "unknown"
-    return "running" if result.stdout.strip() else "stopped"
+    container.reload()
+    return "running" if container.status == "running" else "stopped"
 
 
 def do_start() -> tuple[bool, str]:
-    result = run_compose("up", "-d")
-    if result.returncode != 0:
-        return False, (result.stderr or result.stdout or "docker compose up failed").strip()
+    try:
+        container = find_target_container()
+        if container is None:
+            return False, f"no container found for {COMPOSE_PROJECT}/{COMPOSE_SERVICE}"
+        container.start()
+    except (DockerException, NotFound) as exc:
+        return False, str(exc)
     return True, current_status()
 
 
 def do_stop() -> tuple[bool, str]:
-    # `stop`, not `down` — leaves the container/volumes in place so a
-    # subsequent `start` is fast and no world data is touched.
-    result = run_compose("stop")
-    if result.returncode != 0:
-        return False, (result.stderr or result.stdout or "docker compose stop failed").strip()
+    try:
+        container = find_target_container()
+        if container is None:
+            return False, f"no container found for {COMPOSE_PROJECT}/{COMPOSE_SERVICE}"
+        container.stop()
+    except (DockerException, NotFound) as exc:
+        return False, str(exc)
     return True, current_status()
 
 
@@ -138,11 +163,7 @@ class AdapterHandler(BaseHTTPRequestHandler):
             if handler is None:
                 self._send_json(404, {"ok": False, "error": f"unknown action: {action}"})
                 return
-            try:
-                ok, status_or_error = handler()
-            except subprocess.TimeoutExpired:
-                self._send_json(504, {"ok": False, "error": "docker compose timed out"})
-                return
+            ok, status_or_error = handler()
             if ok:
                 self._send_json(200, {"ok": True, "status": status_or_error})
             else:
@@ -174,7 +195,7 @@ def heartbeat_loop() -> None:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=5):
+            with urllib.request.urlopen(request, timeout=5, context=_ssl_context):
                 pass
         except (urllib.error.URLError, OSError, TimeoutError) as exc:
             print(f"[heartbeat] failed to register with {register_url}: {exc}")
@@ -185,6 +206,7 @@ def main() -> None:
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", ADAPTER_PORT), AdapterHandler)
     print(f"Palworld arcade adapter listening on http://0.0.0.0:{ADAPTER_PORT}")
+    print(f"Controlling {COMPOSE_PROJECT}/{COMPOSE_SERVICE} via the Docker socket")
     print(f"Registering with {ARCADE_BASE_URL} every {HEARTBEAT_SECONDS}s as '{SERVER_ID}'")
     server.serve_forever()
 
