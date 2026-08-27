@@ -35,13 +35,16 @@ Python, no sudo.
 
 | Var | Default | Notes |
 |---|---|---|
-| `ARCADE_SERVER_ID` | `palworld` | unique id in the arcade registry |
+| `ARCADE_SERVER_ID` | `arcade-palworld` | unique id in the arcade registry |
 | `ARCADE_SERVER_NAME` | `Palworld` | display name |
-| `ARCADE_SERVER_DESCRIPTION` | `Palworld dedicated server (docker-palworld)` | |
-| `ARCADE_BASE_URL` | `http://arcade.stanley.arpa` | where to register |
+| `ARCADE_SERVER_DESCRIPTION` | `Palworld dedicated server (arcade-palworld)` | |
+| `ARCADE_BASE_URL` | `https://arcade.stanley.arpa` | where to register |
 | `ARCADE_ADAPTER_PORT` | `8300` | this adapter's own listen port |
-| `ARCADE_ADAPTER_BASE_URL` | auto-detected LAN IP | override if auto-detection picks the wrong interface |
+| `ARCADE_ADAPTER_BASE_URL` | **required, no default** | this host's reachable address — prefer its `*.stanley.arpa` DNS name (e.g. `http://adler.stanley.arpa:8300`) over a raw IP if one exists; auto-detection from inside a container can never see the host's real address |
 | `ARCADE_HEARTBEAT_SECONDS` | `30` | registration heartbeat interval |
+| `ARCADE_COMPOSE_PROJECT` | `arcade-palworld` | compose project label this adapter looks for |
+| `ARCADE_COMPOSE_SERVICE` | `palworld` | compose service label this adapter looks for |
+| `ARCADE_STOP_TIMEOUT_SECONDS` | `30` | must match this repo's `stop_grace_period` |
 
 ## Gotchas
 
