@@ -1,7 +1,9 @@
-# docker-palworld
+# arcade-palworld
 
 Dockerized Palworld dedicated server using
-[thijsvanloef/palworld-server-docker](https://github.com/thijsvanloef/palworld-server-docker).
+[thijsvanloef/palworld-server-docker](https://github.com/thijsvanloef/palworld-server-docker),
+plus its [arcade.stanley.arpa](https://github.com/jakestanley/homelab-arcade) control
+adapter — see [`arcade/README.md`](arcade/README.md) for that half.
 
 ## Setup
 
@@ -12,23 +14,25 @@ Dockerized Palworld dedicated server using
    At minimum, set `ADMIN_PASSWORD` and `SERVER_NAME`. Set `SERVER_PASSWORD`
    if you want to require a password to join.
 
-2. Start the server:
+2. Start the server (and its arcade adapter):
    ```
-   docker compose up -d
+   ./scripts/up.sh
    ```
 
    First boot downloads the Palworld dedicated server via SteamCMD into
    `${DATA_PATH}` (default `./data`), so it can take a while — follow logs
    with `docker compose logs -f`.
 
-3. Forward/open UDP port `${SERVER_PORT}` (default `8211`) on your router
-   and firewall so players outside your LAN can connect.
+3. UDP port `${SERVER_PORT}` (default `8211`) is forwarded on your router
+   automatically, tied to the server's actual running state — see
+   [`arcade/README.md`](arcade/README.md#gotchas). No manual router
+   configuration needed unless `ARCADE_UPNP_ENABLED=false`.
 
 ## Crossplay (Xbox / Game Pass)
 
-`ALLOW_CONNECT_PLATFORM` defaults to `Steam,Xbox` in `.env.example` so both
+`CROSSPLAY_PLATFORMS` defaults to `(Steam,Xbox)` in `.env.example` so both
 Steam and Xbox/Game Pass players can join. If you only want Steam players,
-set it to `Steam`. Xbox/Game Pass players also need crossplay enabled in
+set it to `(Steam)`. Xbox/Game Pass players also need crossplay enabled in
 their own in-game settings — server-side alone isn't enough.
 
 ## Data
