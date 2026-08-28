@@ -10,6 +10,15 @@ idempotent step. The adapter talks to the Docker Engine API directly over the mo
 socket (`docker` Python SDK, no CLI needed) to control the sibling `palworld` container — it
 does not shell out to `docker compose` and doesn't need the compose plugin installed.
 
+`adapter.py` here is just this repo's own config (server id/name, compose project/service,
+`ARCADE_FORWARD_PROTOCOL`, etc.) — the actual HTTP server, Docker control, heartbeat loop, and
+UPnP logic live in [`lib-arcade`](https://github.com/jakestanley/lib-arcade), installed as a git
+dependency tracking its `main` branch (see `requirements.txt`). `arcade-minecraft` shares the
+same library. Because it tracks `main` rather than a pinned commit, a plain rebuild
+(`docker compose up -d --build`) won't pick up new `lib-arcade` commits on its own — Docker
+caches the `pip install` layer since `requirements.txt`'s content never changes; the
+`CACHEBUST` build arg in the `Dockerfile` is there to force that layer to re-run.
+
 ## Contract
 
 Implements the standard arcade adapter contract — see homelab-arcade's
