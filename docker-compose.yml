@@ -32,7 +32,14 @@ services:
       - "${DATA_PATH}:/palworld"
 
   arcade-adapter:
-    build: ./arcade
+    build:
+      context: ./arcade
+      # Bust the pip-install layer to actually pick up new lib-arcade
+      # commits -- requirements.txt pins @main, so its content (and
+      # therefore Docker's cache key) never changes on its own. Pass
+      # CACHEBUST=$(date +%s) when you want a fresh pull.
+      args:
+        CACHEBUST: "${CACHEBUST:-1}"
     restart: unless-stopped
     # Required for UPnP router discovery (SSDP multicast) — confirmed this
     # doesn't reliably work across Docker's default bridge network. Means
