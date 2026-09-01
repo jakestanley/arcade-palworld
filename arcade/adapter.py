@@ -8,7 +8,7 @@ This file only supplies this repo's own defaults.
 
 from __future__ import annotations
 
-from lib_arcade import AdapterConfig, run_adapter
+from lib_arcade import AdapterConfig, do_exec, run_adapter
 
 config = AdapterConfig.from_env(
     default_server_id="arcade-palworld",
@@ -18,8 +18,18 @@ config = AdapterConfig.from_env(
     default_compose_project="arcade-palworld",
     default_compose_service="palworld",
     default_stop_timeout_seconds=30,
-    default_forward_protocol="udp",
+    default_forward_protocols=("udp",),
 )
 
+
+def backup_now() -> tuple[bool, str]:
+    # Reuses the image's own backup script -- the exact same logic
+    # BACKUP_CRON_EXPRESSION already runs every 6h (REST-API save, then
+    # tar the save dir, then prune old backups), just triggered on demand
+    # instead of waiting for the schedule. No arguments; reads the same
+    # env vars already set on the container.
+    return do_exec(config, "bash /usr/local/bin/backup")
+
+
 if __name__ == "__main__":
-    run_adapter(config)
+    run_adapter(config, extra_actions={"backup_now": backup_now})
