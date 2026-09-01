@@ -42,6 +42,27 @@ World saves, config (`PalWorldSettings.ini`), and backups live under
 `docker compose down`/`up` and image updates. Both `.env` and `data/` are
 git-ignored.
 
+### Restoring a backup
+
+Automatic backups land in `${DATA_PATH}/backups/` (see `BACKUP_ENABLED`,
+`BACKUP_CRON_EXPRESSION` in `.env`), or trigger one on demand via the arcade
+adapter's `backup_now` action. To restore one onto the live server:
+
+```
+./scripts/restore_backup.sh data/backups/<backup-file>.tar.gz
+```
+
+This stops `palworld`, moves the current save aside to
+`Pal/Saved.pre-restore-<timestamp>` (never deletes it), extracts the chosen
+backup in its place, and starts `palworld` back up against it. The script
+prints the exact commands to revert back to the preserved live save
+afterward.
+
+If you're testing an older backup and don't want the auto-backup cronjob
+regenerating against the rolled-back save, set `BACKUP_ENABLED=false` in
+`.env` before running the script, then flip it back to `true` (and restart
+the service) once you're done.
+
 ## Updating
 
 The server auto-updates on container start when `AUTO_UPDATE_ENABLED=true`.
