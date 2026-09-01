@@ -4,8 +4,14 @@
 # Safe to re-run any time. Always rebuilds arcade-adapter with a fresh
 # CACHEBUST so it picks up the latest lib-arcade commit -- requirements.txt
 # pins it to @main, so its own content never changes to naturally
-# invalidate Docker's build cache. (--build is a no-op for palworld
-# itself, which has no build: section, just a pulled image.)
+# invalidate Docker's build cache.
+#
+# Each service is brought up individually rather than a bare
+# `docker compose up -d` -- confirmed live (in a sibling repo, same
+# lesson applies here) that an unscoped `up -d` recreates every service
+# in the project together whenever any one of them changes, which would
+# restart a live, in-progress game just to pick up an adapter code
+# change even when palworld itself never changed.
 set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,4 +22,5 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-CACHEBUST=$(date +%s) docker compose up -d --build
+docker compose up -d palworld
+CACHEBUST=$(date +%s) docker compose up -d --build arcade-adapter
