@@ -37,19 +37,25 @@ their own in-game settings — server-side alone isn't enough.
 
 ## Data
 
-World saves, config (`PalWorldSettings.ini`), and backups live under
-`${DATA_PATH}` and are bind-mounted into the container — they persist across
+World saves and config (`PalWorldSettings.ini`) live under `${DATA_PATH}`
+and are bind-mounted into the container — they persist across
 `docker compose down`/`up` and image updates. Both `.env` and `data/` are
 git-ignored.
 
+Backups are a separate, narrower bind mount over the image's own fixed
+internal backup path (`/palworld/backups`), pointed at `${BACKUP_PATH}`
+(default `/var/media/Dropbox/backups/Palworld`, so they get picked up by
+whatever syncs `/var/media/Dropbox/` to Dropbox) — see `docker-compose.yml`.
+They don't live under `${DATA_PATH}` and won't show up there.
+
 ### Restoring a backup
 
-Automatic backups land in `${DATA_PATH}/backups/` (see `BACKUP_ENABLED`,
+Automatic backups land in `${BACKUP_PATH}` (see `BACKUP_ENABLED`,
 `BACKUP_CRON_EXPRESSION` in `.env`), or trigger one on demand via the arcade
 adapter's `backup_now` action. To restore one onto the live server:
 
 ```
-./scripts/restore_backup.sh data/backups/<backup-file>.tar.gz
+./scripts/restore_backup.sh /var/media/Dropbox/backups/Palworld/<backup-file>.tar.gz
 ```
 
 This stops `palworld`, moves the current save aside to

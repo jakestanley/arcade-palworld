@@ -30,6 +30,10 @@ services:
       - "${RCON_PORT}:25575/tcp"
     volumes:
       - "${DATA_PATH}:/palworld"
+      # Narrower mount over the image's own fixed internal backup path,
+      # redirecting backups (BACKUP_ENABLED cron + backup_now) elsewhere
+      # without touching world saves/config under DATA_PATH.
+      - "${BACKUP_PATH}:/palworld/backups"
 
   arcade-adapter:
     build:

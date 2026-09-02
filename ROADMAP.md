@@ -4,7 +4,9 @@ Forward-looking only. Already shipped: the `backup_now` action (invokes the
 image's own `bash /usr/local/bin/backup` via `lib-arcade`'s `do_exec`); the
 backup restore path has now been verified end-to-end, including live,
 against the real server (see below); `scripts/restore_backup.sh` for
-restoring a given backup onto the live service.
+restoring a given backup onto the live service; backups now write to
+`${BACKUP_PATH}` (`/var/media/Dropbox/backups/Palworld` by default) instead
+of `${DATA_PATH}/backups/`, so they sync to Dropbox (see below).
 
 ## Backup restore path — verified 2026-09-01
 
@@ -48,6 +50,38 @@ save — confirmed via the container's own "GENERATING CRONTAB" log line
 that no backup cronjob was added. Reverted back to the live save the same
 way afterward and flipped `BACKUP_ENABLED` back to `true`, confirming via
 the same log line that the cronjob was re-added on restart.
+
+## Backups now sync to Dropbox — 2026-09-02
+
+`thijsvanloef/palworld-server-docker`'s own backup script hardcodes its
+output path to `/palworld/backups/palworld-save-<date>.tar.gz` (not
+env-configurable — confirmed by reading `/usr/local/bin/backup` inside the
+running container). Rather than touching `DATA_PATH`, added a second,
+narrower bind mount in `docker-compose.yml` — `"${BACKUP_PATH}:/palworld/backups"`
+alongside the existing `"${DATA_PATH}:/palworld"` — which redirects that
+fixed internal path without touching anything else under `/palworld` (world
+saves/config stay on `DATA_PATH` as before). `DELETE_OLD_BACKUPS`/
+`OLD_BACKUP_DAYS` retention cleanup follows the mount automatically since
+it just runs `find` over the same internal path.
+
+`BACKUP_PATH` added to `.env.example`/`.env`, defaulting to
+`/var/media/Dropbox/backups/Palworld` so whatever syncs `/var/media/Dropbox/`
+to Dropbox picks these up. Migrated the 30 existing backups from
+`data/backups/` there: copied (not moved — different filesystems, `/home`
+ext4 vs `/var/media` a ZFS pool), verified count/sha256 checksums matched
+for all 30, then deleted the originals. Stopped `palworld` before any of
+this, redeployed after (`docker compose up -d palworld` — confirmed
+`Recreate`d, not just restarted, so the new mount took effect).
+
+Verified end-to-end: triggered the real `backup_now` adapter action over
+its actual HTTP endpoint (`POST /arcade/actions/backup_now`, same path
+arcade.stanley.arpa would use) — the new backup landed only in
+`/var/media/Dropbox/backups/Palworld/` (30 → 31) and did **not** appear in
+the old `data/backups/` (stayed at 0), proving the redirect actually took
+effect rather than coincidentally writing both places. `gzip -t`/`tar -tzf`
+clean on the new backup and on a couple of the migrated ones. Confirmed
+`data/Pal/Saved/` (world/player saves) untouched and current after the
+redeploy.
 
 ## Broaden presets/toggles
 
