@@ -13,11 +13,11 @@ does not shell out to `docker compose` and doesn't need the compose plugin insta
 `adapter.py` here is just this repo's own config (server id/name, compose project/service,
 `ARCADE_FORWARD_PROTOCOL`, etc.) — the actual HTTP server, Docker control, heartbeat loop, and
 UPnP logic live in [`lib-arcade`](https://github.com/jakestanley/lib-arcade), installed as a git
-dependency tracking its `main` branch (see `requirements.txt`). `arcade-minecraft` shares the
-same library. Because it tracks `main` rather than a pinned commit, a plain rebuild
-(`docker compose up -d --build`) won't pick up new `lib-arcade` commits on its own — Docker
-caches the `pip install` layer since `requirements.txt`'s content never changes; the
-`CACHEBUST` build arg in the `Dockerfile` is there to force that layer to re-run.
+dependency tracking its `main` branch (see `requirements.txt`). `arcade-minecraft` and
+`arcade-cs2` share the same library — see its own README for the unpinned-dependency and
+adapter-trust-model caveats that apply here too, not just repeated per consumer. The `CACHEBUST`
+build arg in the `Dockerfile` exists to force a rebuild to actually pick up new `lib-arcade`
+commits (see that README for why).
 
 ## Contract
 
@@ -61,11 +61,10 @@ Python, no sudo.
 
 - Uses `container.stop()`, not removing it — the container and the `data/` volume are left in
   place, no world data is touched. `start()` on an already-running container is a no-op.
-- The adapter container has the host Docker socket mounted in — this is root-equivalent host
-  access, scoped to this one container only. Standard pattern for control agents (Portainer,
-  Watchtower use the same approach), but worth knowing.
-- This adapter is **unauthenticated** — it trusts the homelab LAN/VPN, same trust model as
-  RCON. Do not expose `ARCADE_ADAPTER_PORT` outside the LAN.
+- Unauthenticated, and has `docker.sock` mounted in (root-equivalent host access) — this is a
+  `lib-arcade` property shared by every consumer, not specific to this repo. See
+  [`lib-arcade`'s README](https://github.com/jakestanley/lib-arcade#gotchas) for the actual
+  caveat and why it's a shared trust boundary, not just a local detail.
 - Runs with `network_mode: host` — required for UPnP router discovery (SSDP multicast), which
   doesn't reliably work across Docker's default bridge network. This means the adapter binds
   `ARCADE_ADAPTER_PORT` directly on the host's network stack, not through a published port

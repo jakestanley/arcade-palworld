@@ -58,6 +58,13 @@ docker compose config         # validate compose + .env substitution without sta
   speed, etc.) aren't in `.env.example` yet — they're addable as extra env
   vars per the [image's README](https://github.com/thijsvanloef/palworld-server-docker#environment-variables)
   if the user asks for gameplay tuning.
+- **Docker's `healthy` status only means the process didn't crash** — the
+  image's healthcheck is `pgrep "PalServer-Linux" > /dev/null`, nothing
+  app-level. Confirmed directly during backup-restore testing: a `healthy`
+  container can still be sitting on a save that failed to load properly.
+  When verifying a restore (or any boot) actually worked, check the logs
+  for real signals (`Running Palworld dedicated server on :PORT`, REST API
+  up, no corruption/exception/crash lines) — don't stop at `healthy`.
 - No GitHub remote has been created/pushed for this repo yet (as of initial
   scaffold) — only a local git init. Confirm with the user before creating
   a remote or pushing, per their standing "confirm outward-facing actions"
