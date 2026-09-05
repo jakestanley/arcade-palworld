@@ -57,7 +57,11 @@ docker compose config         # validate compose + .env substitution without sta
 - Most `PalWorldSettings.ini` values (difficulty, drop rates, PvP, day/night
   speed, etc.) aren't in `.env.example` yet — they're addable as extra env
   vars per the [image's README](https://github.com/thijsvanloef/palworld-server-docker#environment-variables)
-  if the user asks for gameplay tuning.
+  if the user asks for gameplay tuning. Adding one isn't just a `.env`
+  change: `docker-compose.yml` explicitly whitelists every var it passes
+  through to the image under `environment:`, so a new var needs a line
+  there too or the container never sees it (`BASE_CAMP_WORKER_MAX_NUM`, for
+  the base pal-worker cap, is the first example of this).
 - **Docker's `healthy` status only means the process didn't crash** — the
   image's healthcheck is `pgrep "PalServer-Linux" > /dev/null`, nothing
   app-level. Confirmed directly during backup-restore testing: a `healthy`
