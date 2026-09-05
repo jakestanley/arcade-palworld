@@ -62,6 +62,19 @@ docker compose config         # validate compose + .env substitution without sta
   through to the image under `environment:`, so a new var needs a line
   there too or the container never sees it (`BASE_CAMP_WORKER_MAX_NUM`, for
   the base pal-worker cap, is the first example of this).
+- **A subset of `PalWorldSettings.ini` values get baked into `WorldOption.sav`
+  at world creation and then ignore the ini forever** — confirmed for
+  `BaseCampWorkerMaxNum`/`BASE_CAMP_WORKER_MAX_NUM`: raising it in `.env` and
+  redeploying compiled correctly into `PalWorldSettings.ini` but had zero
+  effect in-game on the existing world, because the dedicated server reads
+  this value from the save's `WorldOption.sav` instead once one exists. Fix
+  for an existing save is to edit `WorldOption.sav` directly — convert with
+  [`palworld-save-tools`](https://github.com/cheahjs/palworld-save-tools)
+  (`palworld-save-tools --to-json`/`--from-json`), patch the field under
+  `properties.OptionWorldData.value.Settings.value.<Key>.value`, back up the
+  original save file first, stop `palworld` before swapping it in. No
+  general rule for *which* settings are affected — this one is confirmed,
+  treat others as suspect until tested the same way.
 - **Docker's `healthy` status only means the process didn't crash** — the
   image's healthcheck is `pgrep "PalServer-Linux" > /dev/null`, nothing
   app-level. Confirmed directly during backup-restore testing: a `healthy`
