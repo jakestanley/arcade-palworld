@@ -74,7 +74,10 @@ docker compose config         # validate compose + .env substitution without sta
   `properties.OptionWorldData.value.Settings.value.<Key>.value`, back up the
   original save file first, stop `palworld` before swapping it in. No
   general rule for *which* settings are affected — this one is confirmed,
-  treat others as suspect until tested the same way.
+  treat others as suspect until tested the same way. Also confirmed for
+  `PlayerStomachDecreaceRate`/`PalStomachDecreaceRate`
+  (`PLAYER_STOMACH_DECREASE_RATE`/`PAL_STOMACH_DECREASE_RATE`, used to
+  disable hunger) — same fix applied the same way.
 - **Docker's `healthy` status only means the process didn't crash** — the
   image's healthcheck is `pgrep "PalServer-Linux" > /dev/null`, nothing
   app-level. Confirmed directly during backup-restore testing: a `healthy`
