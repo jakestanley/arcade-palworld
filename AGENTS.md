@@ -89,3 +89,24 @@ docker compose config         # validate compose + .env substitution without sta
   scaffold) — only a local git init. Confirm with the user before creating
   a remote or pushing, per their standing "confirm outward-facing actions"
   preference.
+- **Idle server pausing uses the image's native `AUTO_PAUSE_ENABLED` /
+  `AUTO_PAUSE_TIMEOUT_EST`** (seconds, default `1800` here = 30 min here),
+  not anything custom. Confirmed via the image's own `autopause/` scripts:
+  it saves the world (REST API or RCON) before pausing, actually suspends
+  the `PalServer` process itself (real CPU savings, not just "reject new
+  joins"), and runs a `knockd` watcher that auto-resumes the instant
+  someone tries to connect — no manual start needed. A generic
+  portal-driven idle-shutdown mechanism was built into
+  [`lib-arcade`](https://github.com/jakestanley/lib-arcade) (opt-in
+  `ARCADE_IDLE_SHUTDOWN_ENABLED`/`player_count_fn`) before this native
+  option was found; it's merged upstream but deliberately left unwired
+  here since native auto-pause covers the same need better. Don't rebuild
+  it — if a future consumer needs idle-shutdown and has no native
+  equivalent, that's what it's for.
+- **A paused server still reports `running`/`healthy` to Docker and the
+  arcade portal** — pausing suspends the process, it doesn't stop the
+  container, so this is a different flavor of the existing
+  "`healthy` only means the process didn't crash" gotcha above. Don't read
+  portal/container status as proof players can currently see activity;
+  check logs for `[AUTO PAUSE]` lines if you need to know whether it's
+  actually paused right now.
