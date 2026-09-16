@@ -56,15 +56,39 @@ Python, no sudo.
 | `ARCADE_STOP_TIMEOUT_SECONDS` | `30` | must match this repo's `stop_grace_period` |
 | `ARCADE_UPNP_ENABLED` | `true` | opens/closes a router port-forward for `SERVER_PORT` on start/stop via UPnP; set `false` to fall back to a manually-configured forward |
 | `ARCADE_FORWARD_PROTOCOL` | `udp` | protocol of the mapping UPnP opens — matches `palworld`'s game port (`SERVER_PORT`, reused from the top-level `.env`, not a separate value) |
+| `DOCKER_SOCKET_GID` | `999` | GID of the host's `docker` group (owns `/var/run/docker.sock`) — used by the `docker-socket-proxy` service, not the adapter directly. Verify with `stat -c '%g' /var/run/docker.sock`, don't assume the default. |
 
 ## Gotchas
 
 - Uses `container.stop()`, not removing it — the container and the `data/` volume are left in
   place, no world data is touched. `start()` on an already-running container is a no-op.
-- Unauthenticated, and has `docker.sock` mounted in (root-equivalent host access) — this is a
-  `lib-arcade` property shared by every consumer, not specific to this repo. See
-  [`lib-arcade`'s README](https://github.com/jakestanley/lib-arcade#gotchas) for the actual
-  caveat and why it's a shared trust boundary, not just a local detail.
+- Unauthenticated — `lib-arcade`'s HTTP endpoints have no auth of their own, trusting the
+  homelab LAN/VPN instead (same trust model as RCON, standard for control agents like
+  Portainer/Watchtower). See [`lib-arcade`'s README](https://github.com/jakestanley/lib-arcade#gotchas)
+  for the full reasoning. Don't expose `ARCADE_ADAPTER_PORT` outside the LAN.
+- **Does not have `docker.sock` mounted directly** — talks to Docker through the
+  `docker-socket-proxy` service (`docker-socket-proxy.command` in `docker-compose.yml`, image
+  [`wollomatic/socket-proxy`](https://github.com/wollomatic/socket-proxy)) instead, via
+  `DOCKER_HOST=tcp://127.0.0.1:2375`. The proxy allow-lists exactly the Docker API calls
+  `lib_arcade.docker_control` actually makes (container list/inspect/start/stop/exec, image
+  pull+inspect) and default-denies everything else, including `POST /containers/create` and any
+  `DELETE` — those are the calls `do_update`'s container-recreate needs, and a raw `docker.sock`
+  mount would otherwise make container create/exec root-equivalent (a compromised adapter could
+  spin up a privileged container with the host root filesystem bind-mounted). Verified live: a
+  raw `curl` to the proxy's `/containers/create` returns `403`, `DELETE` returns `405`, while
+  `containers/json` (list) still returns `200`.
+  - **Consequence: `lib-arcade`'s baseline `update` action will always fail cleanly through this
+    adapter** (`do_update` can pull+inspect the new image fine, but the delete+recreate step it
+    needs gets blocked). This is intentional, not a bug — updates for this server are deliberately
+    manual (`docker compose pull` + restart) because per-server update caveats (see the
+    `WorldOption.sav`/`AUTO_PAUSE`/etc. gotchas throughout this doc) make an unattended one-click
+    "update" too flaky to trust as a generic portal feature.
+  - `docker-socket-proxy` also runs `network_mode: host` (not a custom bridge network) —
+    deliberately, so its default `-allowfrom=127.0.0.1/32` matches the adapter's real connecting
+    address instead of a NAT-rewritten bridge-gateway IP, and so `palworld` (which stays on the
+    project's own bridge network) has no network path to it at all. Requires
+    `DOCKER_SOCKET_GID` in `.env` to match the host's `docker` group
+    (`stat -c '%g' /var/run/docker.sock`) so the proxy can read the socket without running as root.
 - Runs with `network_mode: host` — required for UPnP router discovery (SSDP multicast), which
   doesn't reliably work across Docker's default bridge network. This means the adapter binds
   `ARCADE_ADAPTER_PORT` directly on the host's network stack, not through a published port

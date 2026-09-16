@@ -40,6 +40,51 @@ services:
       # without touching world saves/config under DATA_PATH.
       - "${BACKUP_PATH}:/palworld/backups"
 
+  # Scoped stand-in for a raw docker.sock mount on arcade-adapter -- see
+  # AGENTS.md gotchas for why (arcade-adapter's docker.sock access is
+  # otherwise root-equivalent: container create/exec both let a caller
+  # mount the host root filesystem into a new privileged container).
+  # Allow-lists exactly the Docker API calls lib_arcade.docker_control
+  # actually makes (container list/inspect/start/stop/exec, image
+  # pull+inspect for the update-available check) and nothing else --
+  # container create/delete are never allow-listed, so lib-arcade's
+  # `update` action (container recreate) will cleanly fail through this
+  # adapter now. That's intentional: manual `docker compose pull` +
+  # restart replaces it -- see the AUTO_PAUSE/update commit and AGENTS.md.
+  # network_mode: host (not a custom bridge network) is deliberate: it
+  # sidesteps Docker's port-publish NAT/hairpin behavior entirely, so
+  # -allowfrom's default 127.0.0.1/32 (the proxy's own default, not
+  # overridden here) actually matches the real connecting address instead
+  # of a rewritten bridge-gateway IP -- and it means palworld (which stays
+  # on the project's own bridge network, not this one) has no network path
+  # to this proxy at all, not even in theory.
+  docker-socket-proxy:
+    image: wollomatic/socket-proxy:1.13.1
+    restart: unless-stopped
+    network_mode: host
+    user: "65534:${DOCKER_SOCKET_GID:-999}"
+    read_only: true
+    cap_drop:
+      - ALL
+    mem_limit: 64m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - "-loglevel=info"
+      # -allowGET/-allowPOST are repeatable Go flags -- each occurrence adds
+      # one more allowed regex, not a numbered-suffix variant (that form is
+      # for the SP_ALLOW_GET_2-style env vars only, not CLI flags).
+      - '-allowGET=/version'
+      - '-allowGET=/v1\..{1,2}/containers/json'
+      - '-allowGET=/v1\..{1,2}/containers/[^/]+/json'
+      - '-allowGET=/v1\..{1,2}/exec/[^/]+/json'
+      - '-allowGET=/v1\..{1,2}/images/.+/json'
+      - '-allowPOST=/v1\..{1,2}/containers/[^/]+/start'
+      - '-allowPOST=/v1\..{1,2}/containers/[^/]+/stop'
+      - '-allowPOST=/v1\..{1,2}/containers/[^/]+/exec'
+      - '-allowPOST=/v1\..{1,2}/exec/[^/]+/start'
+      - '-allowPOST=/v1\..{1,2}/images/create'
+
   arcade-adapter:
     build:
       context: ./arcade
@@ -50,6 +95,8 @@ services:
       args:
         CACHEBUST: "${CACHEBUST:-1}"
     restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
     # Required for UPnP router discovery (SSDP multicast) — confirmed this
     # doesn't reliably work across Docker's default bridge network. Means
     # the adapter binds ARCADE_ADAPTER_PORT directly on the host, so the
@@ -71,6 +118,8 @@ services:
       SERVER_PORT: "${SERVER_PORT}"
       ARCADE_FORWARD_PROTOCOL: "${ARCADE_FORWARD_PROTOCOL:-udp}"
       ARCADE_UPNP_ENABLED: "${ARCADE_UPNP_ENABLED:-true}"
+      # Talks to Docker only through docker-socket-proxy above -- no raw
+      # docker.sock mount on this service anymore.
+      DOCKER_HOST: "tcp://127.0.0.1:${DOCKER_SOCKET_PROXY_PORT:-2375}"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/homelab/certs/ca/ca.crt:/etc/ssl/certs/homelab-ca.crt:ro
