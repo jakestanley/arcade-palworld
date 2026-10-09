@@ -8,6 +8,24 @@ restoring a given backup onto the live service; backups now write to
 `${BACKUP_PATH}` (`/var/media/Dropbox/backups/Palworld` by default) instead
 of `${DATA_PATH}/backups/`, so they sync to Dropbox (see below).
 
+## Missing palboxes and structures — OPEN (2026-10-09)
+
+Moved to quorra on 2026-10-08, then moved back to adler on 2026-10-09
+because players found the map missing. After the restore every palbox and
+player-built structure was gone. The server container is stopped on both
+hosts. The full brief for an investigating session is in
+`PROMPT-missing-structures.md` (untracked, in this checkout on adler):
+the timeline, where every copy of the world is, and how to decode the
+`PlM1` saves.
+
+Once it's settled where the server runs:
+- revert the README "Where it runs" section and the `.env.example`
+  comments if it stays on adler;
+- remove adler's `backup_pulls` entry for Palworld (hosts-adler) if it
+  stays on adler;
+- clean up the stopped stack and its data on quorra once nothing there
+  is needed.
+
 ## Backup restore path — verified 2026-09-01
 
 `backup_now` produces structurally-valid archives — confirmed via `gzip -t`
