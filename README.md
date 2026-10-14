@@ -5,19 +5,6 @@ Dockerized Palworld dedicated server using
 plus its [arcade.stanley.arpa](https://github.com/jakestanley/homelab-arcade) control
 adapter — see [`arcade/README.md`](arcade/README.md) for that half.
 
-## Where it runs
-
-On **quorra** (`~/git/github.com/jakestanley/arcade-palworld`) since
-2026-10-08, moved off adler for CPU headroom. Backups are written locally
-on quorra (`BACKUP_PATH`) and adler pulls them into Dropbox
-(hosts-adler `backup_pull` role). quorra has no GitHub access, so update
-its checkout from adler:
-
-```
-git push quorra.stanley.arpa:git/github.com/jakestanley/arcade-palworld main:refs/remotes/origin/main
-ssh quorra.stanley.arpa 'cd ~/git/github.com/jakestanley/arcade-palworld && git merge --ff-only origin/main'
-```
-
 ## Setup
 
 1. Copy the example env file and edit it:

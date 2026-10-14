@@ -19,8 +19,7 @@ the timeline, where every copy of the world is, and how to decode the
 `PlM1` saves.
 
 Once it's settled where the server runs:
-- revert the README "Where it runs" section and the `.env.example`
-  comments if it stays on adler;
+- revert the `.env.example` comments if it stays on adler;
 - remove adler's `backup_pulls` entry for Palworld (hosts-adler) if it
   stays on adler;
 - clean up the stopped stack and its data on quorra once nothing there
