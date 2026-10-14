@@ -12,6 +12,10 @@ services:
       BASE_CAMP_WORKER_MAX_NUM: "${BASE_CAMP_WORKER_MAX_NUM}"
       PLAYER_STOMACH_DECREASE_RATE: "${PLAYER_STOMACH_DECREASE_RATE}"
       PAL_STOMACH_DECREASE_RATE: "${PAL_STOMACH_DECREASE_RATE}"
+      # Hardcoded, not .env-driven: guild auto-reset destroys every base and
+      # building once no guild member has been online for the timeout. It
+      # wiped this world's bases once (see AGENTS.md); never re-enable.
+      AUTO_RESET_GUILD_NO_ONLINE_PLAYERS: "false"
       ENABLE_PERF_THREADING_ARGS: "${ENABLE_PERF_THREADING_ARGS}"
       WORKER_THREADS_SERVER: "${WORKER_THREADS_SERVER}"
       SERVER_NAME: "${SERVER_NAME}"

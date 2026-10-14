@@ -78,6 +78,19 @@ docker compose config         # validate compose + .env substitution without sta
   `PlayerStomachDecreaceRate`/`PalStomachDecreaceRate`
   (`PLAYER_STOMACH_DECREASE_RATE`/`PAL_STOMACH_DECREASE_RATE`, used to
   disable hunger) — same fix applied the same way.
+- **Guild auto-reset wiped every base and structure once — it's pinned off.**
+  The world was created on Windows with `bAutoResetGuildNoOnlinePlayers=True`
+  (`AutoResetGuildTimeNoOnlinePlayers=72` hours) baked into `WorldOption.sav`,
+  while `PalWorldSettings.ini` said `False` — the save won, same as the
+  worker-cap/hunger gotcha above. On 2026-09-19 between 12:30 and 18:30 all
+  three bases (palboxes, buildings, `BaseCampSaveData`, `WorkSaveData`) were
+  removed completely. It was noticed on 2026-10-09 and fixed on 2026-10-14:
+  the flag was flipped in `WorldOption.sav`, and `Level.sav`, `LevelMeta.sav`
+  and `Players/` were rolled back to the `palworld-save-2026-09-19_18-00-00`
+  image backup. `docker-compose.yml`
+  hardcodes `AUTO_RESET_GUILD_NO_ONLINE_PLAYERS: "false"` so the ini can't
+  drift either. Never re-enable. If a restored or imported world appears,
+  check its `WorldOption.sav` for this flag before letting it run.
 - **Docker's `healthy` status only means the process didn't crash** — the
   image's healthcheck is `pgrep "PalServer-Linux" > /dev/null`, nothing
   app-level. Confirmed directly during backup-restore testing: a `healthy`
